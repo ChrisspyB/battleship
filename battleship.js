@@ -3,7 +3,7 @@ var canvas = document.getElementById('canvasBS');
 var ctx = canvas.getContext('2d'); 
 
 var rot_toggled = false; //
-
+var draw_rhs = false; // draw the opponents pieces? For debugging.
 var STATE = {
 	placement:0,
 	leftTurn:1,
@@ -46,8 +46,8 @@ function GameManager(local){
 }
 GameManager.prototype.draw = function() {
 	this.drawUI();
-	this.boards[0].draw();
-	this.boards[1].draw();
+	this.boards[0].draw(true);
+	this.boards[1].draw(draw_rhs);
 };
 GameManager.prototype.drawUI = function() {
 	ctx.font = "16px Arial";
@@ -62,10 +62,10 @@ GameManager.prototype.playAI = function(){
 	var move = []
 	while (generating){
 		generating = false;
-		move = [Math.floor(Math.random()*10),Math.floor(Math.random()*10)];
+		move = [Math.floor(Math.random()*game.boardSqLen),
+				Math.floor(Math.random()*game.boardSqLen)];
 		for (var i=0; i<this.aiMoves.length; i++){
 			if (move[0] == this.aiMoves[i][0] && move[1] == this.aiMoves[i][1]){
-				console.log('REPEAT ASLJDHAKSD GAKJ')
 				generating=true;
 				break;
 			}
@@ -92,14 +92,14 @@ function Board(x,y,gm){
 	}
 }
 
-Board.prototype.addShip = function(x,y) {
+Board.prototype.addShip = function(x,y,rot) {
 	/*
 	x,y = grid position of top left of ship.
 	*/
 	if (this.ships >= shipHeight.length){return;}
 	var h   = shipHeight[this.ships]
 
-	if(rot_toggled){
+	if(rot){
 		if (x+h > game.boardSqLen){return;}
 		for (var i=x; i<x+h; i++){
 			if (this.map[i][y] & mark.ship){return;}
@@ -120,20 +120,31 @@ Board.prototype.addShip = function(x,y) {
 
 	this.ships+=1;
 };
-Board.prototype.draw = function() {
+Board.prototype.placeRandom = function() {
+	console.log(this.ships);
+	if (this.ships >= shipHeight.length){return;}
+	var h = shipHeight[this.ships];
+	var rot = Math.random() < 0.5 ? true : false;
+	var x = Math.floor(Math.random()*(game.boardSqLen - (rot ? h:0)));
+	var y = Math.floor(Math.random()*(game.boardSqLen - (rot ? 0:h)));
+	this.addShip(x,y,rot);
+	this.placeRandom();
+};
+Board.prototype.draw = function(showShips) {
 	for (var i=0; i<game.boardSqLen; i++){
 		for (var j=0; j<game.boardSqLen; j++){
-			this.drawSquare(i,j);
+			this.drawSquare(i,j,showShips);
 		}
 	}
 };
-Board.prototype.drawSquare = function(i,j) {
+Board.prototype.drawSquare = function(i,j,showShips) {
 	ctx.beginPath();
 	ctx.rect(this.x+game.squareSize*i,this.y+game.squareSize*j,game.squareSize,game.squareSize);
 	if(this.map[i][j] & mark.shot && this.map[i][j] & mark.ship) {
 		ctx.fillStyle = COLOR.hit; }
 	else if (this.map[i][j] & mark.shot) { ctx.fillStyle = COLOR.miss; }
-	else if (this.map[i][j] & mark.ship) { ctx.fillStyle = COLOR.ship; }
+	else if (this.map[i][j] & mark.ship) { 
+		ctx.fillStyle = showShips ? COLOR.ship:COLOR.water; }
 	else {ctx.fillStyle = COLOR.water}
 	ctx.fill();
 	ctx.stroke();
@@ -157,7 +168,7 @@ Board.prototype.clickSquare = function(mouse_x,mouse_y,placement) {
 	var j = Math.floor((mouse_y - this.y) / game.squareSize);
 
 	if (placement){
-		this.addShip(i,j);
+		this.addShip(i,j,rot_toggled);
 	}else if (game.state == STATE.leftTurn && !(this.map[i][j] & mark.shot)){
 		
 		this.shootSquare(i,j);
@@ -170,10 +181,8 @@ Board.prototype.clickSquare = function(mouse_x,mouse_y,placement) {
 
 //Testing
 var gm = new GameManager(true);
-for (var i = 0; i<shipHeight.length; i++){
-	gm.boards[1].addShip(i*2,1);
-}
-gm.draw();	
+gm.boards[1].placeRandom();
+gm.draw();		
 
 document.addEventListener('click',function(event){
 	var rect = canvas.getBoundingClientRect();
