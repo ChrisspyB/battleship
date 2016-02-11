@@ -40,8 +40,9 @@ function GameManager(local){
 	/*
 	local 	= is this an offline game
 	*/
-	this.boards = [	new Board(game.x,game.y),
-					new Board(game.x + game.boardLen + game.boardSep, game.y)];
+	this.boards = [	new Board(game.x,game.y,this),
+					new Board(game.x + game.boardLen + game.boardSep, game.y,this)];
+	this.aiMoves=[];
 }
 GameManager.prototype.draw = function() {
 	this.drawUI();
@@ -54,10 +55,31 @@ GameManager.prototype.drawUI = function() {
 	ctx.fillStyle = "#000000";
 	ctx.fillText("State: "+game.state, canvas.width/2, canvas.height - 50);
 };
+GameManager.prototype.playAI = function(){
+	// very dirty, inefficient, rubbish ai just for the moment.
+	// no minimum run time hoooray!
+	var generating = true;
+	var move = []
+	while (generating){
+		generating = false;
+		move = [Math.floor(Math.random()*10),Math.floor(Math.random()*10)];
+		for (var i=0; i<this.aiMoves.length; i++){
+			if (move[0] == this.aiMoves[i][0] && move[1] == this.aiMoves[i][1]){
+				console.log('REPEAT ASLJDHAKSD GAKJ')
+				generating=true;
+				break;
+			}
+		}
+	}
+	this.aiMoves.push(move);
+	this.boards[0].shootSquare(move[0],move[1]);
+	game.state = STATE.leftTurn;
+}
 
-function Board(x,y){
+function Board(x,y,gm){
 	this.x = x;
 	this.y = y;
+	this.manager = gm;
 	this.ships = 0;
 	this.health = maxHits;
 	this.friendly = true; // Does the board belong to the local player
@@ -118,6 +140,16 @@ Board.prototype.drawSquare = function(i,j) {
 	ctx.closePath();
 
 };
+Board.prototype.shootSquare = function(i,j) {
+	this.map[i][j] = this.map[i][j] | mark.shot;
+	if (this.map[i][j] & mark.ship){
+		console.log('Hit!');
+		this.health--;
+	}else{
+		console.log('Miss!');
+	}
+	this.drawSquare(i,j);
+};
 Board.prototype.clickSquare = function(mouse_x,mouse_y,placement) {
 	if (mouse_x < this.x || mouse_x > this.x + game.boardLen ||
 		mouse_y < this.y || mouse_y > this.y + game.boardLen) { return; }
@@ -127,14 +159,12 @@ Board.prototype.clickSquare = function(mouse_x,mouse_y,placement) {
 	if (placement){
 		this.addShip(i,j);
 	}else if (game.state == STATE.leftTurn && !(this.map[i][j] & mark.shot)){
-		this.map[i][j] = this.map[i][j] | mark.shot;
-		if (this.map[i][j] & mark.ship){
-			console.log('Hit!');
-			this.health--;
-		}else{
-			console.log('Miss!');
-		}
-		this.drawSquare(i,j);
+		
+		this.shootSquare(i,j);
+
+		game.state = STATE.rightTurn; 
+		this.manager.drawUI();
+		this.manager.playAI();
 	}
 };	
 
