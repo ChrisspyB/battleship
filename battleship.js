@@ -17,11 +17,14 @@ var COLOR = {
 	miss:'#ddddff'
 };
 var shipHeight = [5,4,3,3,2];
-
+var maxHits = 0;
+for (var i=0; i<shipHeight.length; i++){
+	maxHits += shipHeight[i];
+}
 var game = {
 	x:10,
 	y:10,
-	squareSize:32,
+	squareSize:38,
 	boardSep:32,
 	boardSqLen:10,
 	state:STATE.placement
@@ -30,9 +33,8 @@ game.boardLen = game.boardSqLen*game.squareSize;
 
 var mark = {
 	ship: 	1,
-	hit: 	2,
-	miss: 	4,
-	interest:8 	//flag square as marked as interesting by player (eg by RMB)
+	shot: 	2,
+	interest:4 	//flag square as marked as interesting by player (eg by RMB)
 };
 function GameManager(local){
 	/*
@@ -47,12 +49,17 @@ GameManager.prototype.draw = function() {
 	this.boards[1].draw();
 };
 GameManager.prototype.drawUI = function() {
+	ctx.font = "16px Arial";
+	ctx.textAlign="center";
+	ctx.fillStyle = "#000000";
+	ctx.fillText("State: "+game.state, canvas.width/2, canvas.height - 50);
 };
 
 function Board(x,y){
 	this.x = x;
 	this.y = y;
 	this.ships = 0;
+	this.health = maxHits;
 	this.friendly = true; // Does the board belong to the local player
 	this.map = [];
 	for (var i=0; i<game.boardSqLen; i++ ){
@@ -62,11 +69,12 @@ function Board(x,y){
 		}
 	}
 }
+
 Board.prototype.addShip = function(x,y) {
 	/*
 	x,y = grid position of top left of ship.
 	*/
-	if (this.ships == shipHeight.length){return;}
+	if (this.ships >= shipHeight.length){return;}
 	var h   = shipHeight[this.ships]
 
 	if(rot_toggled){
@@ -90,64 +98,66 @@ Board.prototype.addShip = function(x,y) {
 
 	this.ships+=1;
 };
-
 Board.prototype.draw = function() {
 	for (var i=0; i<game.boardSqLen; i++){
 		for (var j=0; j<game.boardSqLen; j++){
-
-			ctx.beginPath();
-			ctx.rect(this.x+game.squareSize*i,this.y+game.squareSize*j,game.squareSize,game.squareSize);
-			if(this.map[i][j] & mark.hit) {	ctx.fillStyle = COLOR.hit; }
-			else { ctx.fillStyle = COLOR.water; }
-			ctx.fill();
-			ctx.stroke();
-			ctx.closePath();
-			if(this.map[i][j] & mark.ship) {
-				// draw ship ...
-				ctx.beginPath();
-				ctx.rect(this.x+game.squareSize*i,this.y+game.squareSize*j,game.squareSize,game.squareSize);
-				ctx.fillStyle = COLOR.ship;
-				ctx.fill();
-				ctx.closePath();
-			}
+			this.drawSquare(i,j);
 		}
 	}
 };
-Board.prototype.clickSquare = function(mouse_x,mouse_y) {
+Board.prototype.drawSquare = function(i,j) {
+	ctx.beginPath();
+	ctx.rect(this.x+game.squareSize*i,this.y+game.squareSize*j,game.squareSize,game.squareSize);
+	if(this.map[i][j] & mark.shot && this.map[i][j] & mark.ship) {
+		ctx.fillStyle = COLOR.hit; }
+	else if (this.map[i][j] & mark.shot) { ctx.fillStyle = COLOR.miss; }
+	else if (this.map[i][j] & mark.ship) { ctx.fillStyle = COLOR.ship; }
+	else {ctx.fillStyle = COLOR.water}
+	ctx.fill();
+	ctx.stroke();
+	ctx.closePath();
+
+};
+Board.prototype.clickSquare = function(mouse_x,mouse_y,placement) {
 	if (mouse_x < this.x || mouse_x > this.x + game.boardLen ||
 		mouse_y < this.y || mouse_y > this.y + game.boardLen) { return; }
 	var i = Math.floor((mouse_x - this.x) / game.squareSize);
 	var j = Math.floor((mouse_y - this.y) / game.squareSize);
 
-	if (game.state == STATE.placement){
-		this.addShip(i,j)
+	if (placement){
+		this.addShip(i,j);
+	}else if (game.state == STATE.leftTurn && !(this.map[i][j] & mark.shot)){
+		this.map[i][j] = this.map[i][j] | mark.shot;
+		if (this.map[i][j] & mark.ship){
+			console.log('Hit!');
+			this.health--;
+		}else{
+			console.log('Miss!');
+		}
+		this.drawSquare(i,j);
 	}
 };	
 
-
 //Testing
 var gm = new GameManager(true);
-gm.draw();
-
+for (var i = 0; i<shipHeight.length; i++){
+	gm.boards[1].addShip(i*2,1);
+}
+gm.draw();	
 
 document.addEventListener('click',function(event){
 	var rect = canvas.getBoundingClientRect();
 	var mouse_x = event.clientX  - rect.left;
 	var mouse_y = event.clientY - rect.top;
-	if (mouse_x > game.x + game.boardLen){
-		gm.boards[1].clickSquare(mouse_x,mouse_y);
+	if (mouse_x > game.x + game.boardLen && game.state != STATE.placement){
+		gm.boards[1].clickSquare(mouse_x,mouse_y,false);
 	}
-	else{
-		gm.boards[0].clickSquare(mouse_x,mouse_y);
+	else if (game.state == STATE.placement) {
+		gm.boards[0].clickSquare(mouse_x,mouse_y,true);
 	}
 });
 
 function mouseMove (event) {
-	if (game.state!=STATE.placement){
-		document.removeEventListener('mousemove',mouseMove);
-		return;
-	}
-
 	var rect = canvas.getBoundingClientRect();
 	var mouse_x = event.clientX  - rect.left;
 	var mouse_y = event.clientY - rect.top;
@@ -167,10 +177,18 @@ function mouseMove (event) {
 	ctx.fill();
 	ctx.stroke();
 	ctx.closePath();
+
+	if (gm.boards[0].ships >= shipHeight.length){
+		game.state = STATE.leftTurn;
+		ctx.clearRect(0,game.boardSqLen+game.y,canvas.width,canvas.height);
+		gm.draw();
+		document.removeEventListener('mousemove',mouseMove);
+		return;
+	}
 }
 document.addEventListener('mousemove',mouseMove);
 
-document.addEventListener('keydown',function(event){
+document.addEventListener('keyup',function(event){
 	if (event.keyCode == 32){
 		rot_toggled = ~rot_toggled;
 		// mouseMove(event);
