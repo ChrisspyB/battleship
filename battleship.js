@@ -16,7 +16,7 @@ var COLOR = {
 	hit:'#ffaaaa',
 	miss:'#ddddff'
 };
-var shipHeight = [5,4,3,3,2];
+var shipHeight = [5,4,3,3,2]; // list of battle ships
 var maxHits = 0;
 for (var i=0; i<shipHeight.length; i++){
 	maxHits += shipHeight[i];
@@ -25,8 +25,8 @@ var game = {
 	x:10,
 	y:10,
 	squareSize:38,
-	boardSep:32,
-	boardSqLen:10,
+	boardSep:32, //separation of two boards
+	boardSqLen:10, //length of boards, in squares
 	state:STATE.placement
 };
 game.boardLen = game.boardSqLen*game.squareSize;
@@ -50,10 +50,12 @@ GameManager.prototype.draw = function() {
 	this.boards[1].draw(draw_rhs);
 };
 GameManager.prototype.drawUI = function() {
-	ctx.font = "16px Arial";
-	ctx.textAlign="center";
-	ctx.fillStyle = "#000000";
-	ctx.fillText("State: "+game.state, canvas.width/2, canvas.height - 50);
+	if(game.state==STATE.gameOver){	
+		ctx.font = "16px Arial";
+		ctx.textAlign="center";
+		ctx.fillStyle = "#000000";
+		ctx.fillText("Game Over!", canvas.width/2, canvas.height - 50);
+	}
 };
 GameManager.prototype.playAI = function(){
 	// very dirty, inefficient, rubbish ai just for the moment.
@@ -73,6 +75,10 @@ GameManager.prototype.playAI = function(){
 	}
 	this.aiMoves.push(move);
 	this.boards[0].shootSquare(move[0],move[1]);
+	if(game.state == STATE.gameOver){
+		this.drawUI();
+		return;
+	}
 	game.state = STATE.leftTurn;
 }
 
@@ -121,7 +127,6 @@ Board.prototype.addShip = function(x,y,rot) {
 	this.ships+=1;
 };
 Board.prototype.placeRandom = function() {
-	console.log(this.ships);
 	if (this.ships >= shipHeight.length){return;}
 	var h = shipHeight[this.ships];
 	var rot = Math.random() < 0.5 ? true : false;
@@ -154,26 +159,30 @@ Board.prototype.drawSquare = function(i,j,showShips) {
 Board.prototype.shootSquare = function(i,j) {
 	this.map[i][j] = this.map[i][j] | mark.shot;
 	if (this.map[i][j] & mark.ship){
-		console.log('Hit!');
 		this.health--;
-	}else{
-		console.log('Miss!');
 	}
 	this.drawSquare(i,j);
+	if (this.health<=0){
+		game.state = STATE.gameOver;
+		this.manager.drawUI();
+	}
 };
 Board.prototype.clickSquare = function(mouse_x,mouse_y,placement) {
 	if (mouse_x < this.x || mouse_x > this.x + game.boardLen ||
 		mouse_y < this.y || mouse_y > this.y + game.boardLen) { return; }
 	var i = Math.floor((mouse_x - this.x) / game.squareSize);
 	var j = Math.floor((mouse_y - this.y) / game.squareSize);
-
+	if (i > 9){ i = 9} 
+	if (j > 9){ j = 9} 
 	if (placement){
 		this.addShip(i,j,rot_toggled);
 	}else if (game.state == STATE.leftTurn && !(this.map[i][j] & mark.shot)){
-		
 		this.shootSquare(i,j);
-
-		game.state = STATE.rightTurn; 
+		if(game.state == STATE.gameOver){
+			this.manager.drawUI();
+			return;
+		}
+		game.state = STATE.rightTurn;
 		this.manager.drawUI();
 		this.manager.playAI();
 	}
@@ -188,7 +197,7 @@ document.addEventListener('click',function(event){
 	var rect = canvas.getBoundingClientRect();
 	var mouse_x = event.clientX  - rect.left;
 	var mouse_y = event.clientY - rect.top;
-	if (mouse_x > game.x + game.boardLen && game.state != STATE.placement){
+	if (mouse_x > game.x + game.boardLen && game.state != (STATE.placement || STATE.gameOver)){
 		gm.boards[1].clickSquare(mouse_x,mouse_y,false);
 	}
 	else if (game.state == STATE.placement) {
