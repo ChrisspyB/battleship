@@ -8,7 +8,8 @@ var STATE = {
 	placement:0,
 	leftTurn:1,
 	rightTurn:2,
-	gameOver:3
+	gameOver:3,
+	menu:4
 };
 var COLOR = {
 	water:'#aaaaff',
@@ -27,7 +28,7 @@ var game = {
 	squareSize:38,
 	boardSep:32, //separation of two boards
 	boardSqLen:10, //length of boards, in squares
-	state:STATE.placement
+	state:STATE.menu
 };
 game.boardLen = game.boardSqLen*game.squareSize;
 
@@ -44,8 +45,23 @@ function GameManager(local){
 					new Board(game.x + game.boardLen + game.boardSep, game.y,this)];
 	this.aiMoves=[];
 }
+GameManager.prototype.newGame = function(mp) {
+	if(mp){
+		//mp
+		console.log('not yet implemented');
+		return;
+	}
+	else{
+		//sp
+		this.boards[1].placeRandom();
+	}
+	//shared
+	game.state = STATE.placement;
+	this.draw();
+};
 GameManager.prototype.draw = function() {
 	this.drawUI();
+	if(game.state == STATE.menu){return;}
 	this.boards[0].draw(true);
 	this.boards[1].draw(draw_rhs);
 };
@@ -55,6 +71,16 @@ GameManager.prototype.drawUI = function() {
 		ctx.textAlign="center";
 		ctx.fillStyle = "#000000";
 		ctx.fillText("Game Over!", canvas.width/2, canvas.height - 50);
+	}else if (game.state==STATE.menu){
+		ctx.font = "16px Arial";
+		ctx.textAlign="center";
+		ctx.fillStyle = "#000000";
+		ctx.fillText("Single Player vs AI", canvas.width/4, canvas.height/2);
+		ctx.fillText("Online Multiplayer", 3*canvas.width/4, canvas.height/2);
+		ctx.beginPath();
+		ctx.moveTo(canvas.width/2,0);
+		ctx.lineTo(canvas.width/2,canvas.height);
+		ctx.stroke();
 	}
 };
 GameManager.prototype.playAI = function(){
@@ -188,16 +214,20 @@ Board.prototype.clickSquare = function(mouse_x,mouse_y,placement) {
 	}
 };	
 
-//Testing
-var gm = new GameManager(true);
-gm.boards[1].placeRandom();
-gm.draw();		
+//
+
+var gm = new GameManager(true);	
+gm.draw();
+
 
 document.addEventListener('click',function(event){
 	var rect = canvas.getBoundingClientRect();
 	var mouse_x = event.clientX  - rect.left;
 	var mouse_y = event.clientY - rect.top;
-	if (mouse_x > game.x + game.boardLen && game.state != (STATE.placement || STATE.gameOver)){
+	if (game.state == STATE.menu){
+		gm.newGame(mouse_x>canvas.width/2);
+	}
+	else if (mouse_x > game.x + game.boardLen && game.state != (STATE.placement || STATE.gameOver)){
 		gm.boards[1].clickSquare(mouse_x,mouse_y,false);
 	}
 	else if (game.state == STATE.placement) {
@@ -206,6 +236,8 @@ document.addEventListener('click',function(event){
 });
 
 function mouseMove (event) {
+	// only called during placement
+	if (game.state != STATE.placement){return;}
 	var rect = canvas.getBoundingClientRect();
 	var mouse_x = event.clientX  - rect.left;
 	var mouse_y = event.clientY - rect.top;
