@@ -9,7 +9,8 @@ var STATE = {
 	leftTurn:1,
 	rightTurn:2,
 	gameOver:3,
-	menu:4
+	menu:4,
+	mpGameList:5
 };
 var COLOR = {
 	water:'#aaaaff',
@@ -17,7 +18,7 @@ var COLOR = {
 	hit:'#ffaaaa',
 	miss:'#ddddff'
 };
-var shipHeight = [5,4,3,3,2]; // list of battle ships
+var shipHeight = [2]; // list of battle ships, def: [5,4,3,3,2]
 var maxHits = 0;
 for (var i=0; i<shipHeight.length; i++){
 	maxHits += shipHeight[i];
@@ -28,13 +29,13 @@ var game = {
 	squareSize:38,
 	boardSep:32, //separation of two boards
 	boardSqLen:10, //length of boards, in squares
-	state:STATE.menu
+	state:STATE.menu,
 };
 game.boardLen = game.boardSqLen*game.squareSize;
 
 var mark = {
-	ship: 	1,
-	shot: 	2,
+	ship:1,
+	shot:2,
 	interest:4 	//flag square as marked as interesting by player (eg by RMB)
 };
 function GameManager(local){
@@ -43,25 +44,53 @@ function GameManager(local){
 	*/
 	this.boards = [	new Board(game.x,game.y,this),
 					new Board(game.x + game.boardLen + game.boardSep, game.y,this)];
-	this.aiMoves=[];
+	this.aiMoves=[]; // * TEMP METHOD OF HANDLING AI
+	this.mp = false;
 }
 GameManager.prototype.newGame = function(mp) {
 	if(mp){
-		//mp
 		console.log('not yet implemented');
+		game.state = STATE.mpGameList;
+		this.draw();
 		return;
+		this.mp = true;
 	}
 	else{
-		//sp
 		this.boards[1].placeRandom();
+		this.mp = false;
 	}
 	//shared
 	game.state = STATE.placement;
 	this.draw();
 };
+GameManager.prototype.nextPlayer = function(move) {
+	if(game.state == STATE.gameOver){
+		this.drawUI();
+		return;
+	}
+	game.state = game.state == STATE.rightTurn ? STATE.leftTurn : STATE.rightTurn;
+	if (this.mp){
+		if (move<100){ //end local player's turn
+			this.mpSendMove(move);
+		}
+		else{ // begin local player's turn
+
+		}
+	}
+	else{
+		if (game.state==STATE.rightTurn) {this.playAI()};
+	}
+};
+GameManager.prototype.mpSendMove = function(move) {
+	// send move to server
+};
+GameManager.prototype.mpReceiveMove = function(move) {
+	this.boards[game.state = game.state == STATE.rightTurn ? 0 : 1].shootSquare(move%10,Math.floor(move/10));
+	this.nextPlayer(100);
+};
 GameManager.prototype.draw = function() {
 	this.drawUI();
-	if(game.state == STATE.menu){return;}
+	if(game.state >= STATE.menu ){return;}
 	this.boards[0].draw(true);
 	this.boards[1].draw(draw_rhs);
 };
@@ -72,6 +101,7 @@ GameManager.prototype.drawUI = function() {
 		ctx.fillStyle = "#000000";
 		ctx.fillText("Game Over!", canvas.width/2, canvas.height - 50);
 	}else if (game.state==STATE.menu){
+		ctx.clearRect(0,0,canvas.width,canvas.height);
 		ctx.font = "16px Arial";
 		ctx.textAlign="center";
 		ctx.fillStyle = "#000000";
@@ -82,30 +112,36 @@ GameManager.prototype.drawUI = function() {
 		ctx.lineTo(canvas.width/2,canvas.height);
 		ctx.stroke();
 	}
+	else if (game.state==STATE.mpGameList){
+		ctx.clearRect(0,0,canvas.width,canvas.height);
+		ctx.font = "16px Arial";
+		ctx.textAlign="center";
+		ctx.fillStyle = "#000000";
+		ctx.fillText("Back", canvas.width/2, 7*canvas.height/8);
+		ctx.beginPath();
+		ctx.moveTo(0,3*canvas.height/4);
+		ctx.lineTo(canvas.width,3*canvas.height/4);
+		ctx.stroke();
+	}
 };
 GameManager.prototype.playAI = function(){
 	// very dirty, inefficient, rubbish ai just for the moment.
 	// no minimum run time hoooray!
 	var generating = true;
-	var move = []
+	var move = 0;
 	while (generating){
 		generating = false;
-		move = [Math.floor(Math.random()*game.boardSqLen),
-				Math.floor(Math.random()*game.boardSqLen)];
+		move = Math.floor(Math.random()*game.boardSqLen) + 10*Math.floor(Math.random()*game.boardSqLen);
 		for (var i=0; i<this.aiMoves.length; i++){
-			if (move[0] == this.aiMoves[i][0] && move[1] == this.aiMoves[i][1]){
+			if (move == this.aiMoves[i]){
 				generating=true;
 				break;
 			}
 		}
 	}
 	this.aiMoves.push(move);
-	this.boards[0].shootSquare(move[0],move[1]);
-	if(game.state == STATE.gameOver){
-		this.drawUI();
-		return;
-	}
-	game.state = STATE.leftTurn;
+	this.boards[0].shootSquare(move%10,Math.floor(move/10));
+	this.nextPlayer(0);
 }
 
 function Board(x,y,gm){
@@ -118,7 +154,7 @@ function Board(x,y,gm){
 	this.map = [];
 	for (var i=0; i<game.boardSqLen; i++ ){
 		this.map.push([]);
-		for (var j=0; j<game.boardSqLen; j++ ){
+		for (var j=0; j<game.boardSqLen; j++ ){	
 			this.map[i].push(0);
 		}
 	}
@@ -198,19 +234,14 @@ Board.prototype.clickSquare = function(mouse_x,mouse_y,placement) {
 		mouse_y < this.y || mouse_y > this.y + game.boardLen) { return; }
 	var i = Math.floor((mouse_x - this.x) / game.squareSize);
 	var j = Math.floor((mouse_y - this.y) / game.squareSize);
-	if (i > 9){ i = 9} 
-	if (j > 9){ j = 9} 
+	if (i > 9){ i = 9;} 
+	if (j > 9){ j = 9;} 
 	if (placement){
 		this.addShip(i,j,rot_toggled);
-	}else if (game.state == STATE.leftTurn && !(this.map[i][j] & mark.shot)){
+	}
+	else if (game.state == STATE.leftTurn && !(this.map[i][j] & mark.shot)){
 		this.shootSquare(i,j);
-		if(game.state == STATE.gameOver){
-			this.manager.drawUI();
-			return;
-		}
-		game.state = STATE.rightTurn;
-		this.manager.drawUI();
-		this.manager.playAI();
+		this.manager.nextPlayer(i+j*10);
 	}
 };	
 
@@ -226,6 +257,11 @@ document.addEventListener('click',function(event){
 	var mouse_y = event.clientY - rect.top;
 	if (game.state == STATE.menu){
 		gm.newGame(mouse_x>canvas.width/2);
+	}
+	else if (game.state == STATE.mpGameList && mouse_y>3*canvas.height/4){
+
+		game.state = STATE.menu;
+		gm.draw();
 	}
 	else if (mouse_x > game.x + game.boardLen && game.state != (STATE.placement || STATE.gameOver)){
 		gm.boards[1].clickSquare(mouse_x,mouse_y,false);
