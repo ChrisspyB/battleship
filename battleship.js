@@ -18,7 +18,7 @@ var COLOR = {
 	hit:'#ffaaaa',
 	miss:'#ddddff'
 };
-var shipHeight = [2]; // list of battle ships, def: [5,4,3,3,2]
+var shipHeight = [5,4,3,3,2]; // list of battle ships, def: [5,4,3,3,2]
 var maxHits = 0;
 for (var i=0; i<shipHeight.length; i++){
 	maxHits += shipHeight[i];
@@ -255,6 +255,7 @@ document.addEventListener('click',function(event){
 	var rect = canvas.getBoundingClientRect();
 	var mouse_x = event.clientX  - rect.left;
 	var mouse_y = event.clientY - rect.top;
+	if (mouse_x<0 || mouse_x>canvas.width || mouse_y<0 || mouse_y>canvas.height){return;}
 	if (game.state == STATE.menu){
 		gm.newGame(mouse_x>canvas.width/2);
 	}
