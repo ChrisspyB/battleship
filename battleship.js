@@ -39,18 +39,18 @@ var mark = {
 	interest:4 	//flag square as marked as interesting by player (eg by RMB)
 };
 function GameManager(local){
-	/*
-	local 	= is this an offline game
-	*/
 	this.boards = [	new Board(game.x,game.y,this),
 					new Board(game.x + game.boardLen + game.boardSep, game.y,this)];
 	this.aiMoves=[]; // * TEMP METHOD OF HANDLING AI
 	this.mp = false;
+	this.timestamp = null;
 }
 GameManager.prototype.newGame = function(mp) {
 	if(mp){
 		console.log('not yet implemented');
 		game.state = STATE.mpGameList;
+		// this.mpSendMove(9);
+		this.mpWaitMove();
 		this.draw();
 		return;
 		this.mp = true;
@@ -81,8 +81,37 @@ GameManager.prototype.nextPlayer = function(move) {
 		if (game.state==STATE.rightTurn) {this.playAI()};
 	}
 };
+GameManager.prototype.mpWaitMove = function() {
+	$.ajax({
+			type: "GET",
+			url: "serverside.php?moving=0&timestamp="+this.timestamp,
+			async: true,
+			cache: false,
+			dataType: 'json',
+			success: function(data){
+				var json = data;
+				if(json['move']<100){
+					alert(json['move']);
+				}
+				else{
+					setTimeout('waitMove()',5000);
+				}
+					this.timestamp=json['timestamp'];
+			},
+				error: function(XMLHttpRequest,textStatus,errorThrown){
+				alert('error: '+textStatus + '(' + errorThrown + ')');
+				console.log('error: '+textStatus + '(' + errorThrown + ')');
+				setTimeout('waitMove()',15000);
+			}
+		});
+};
 GameManager.prototype.mpSendMove = function(move) {
 	// send move to server
+
+	var xmlhttp = new XMLHttpRequest();
+	xmlhttp.open("GET","serverside.php?moving=1&move="+String(move),true);
+	xmlhttp.send();
+
 };
 GameManager.prototype.mpReceiveMove = function(move) {
 	this.boards[game.state = game.state == STATE.rightTurn ? 0 : 1].shootSquare(move%10,Math.floor(move/10));
@@ -311,3 +340,7 @@ document.addEventListener('keyup',function(event){
 		// mouseMove(event);
 	}
 });
+
+function waitMove(){
+	gm.mpWaitMove();
+}
