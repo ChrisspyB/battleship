@@ -7,7 +7,8 @@ $plyid = (int) $_POST["plyid"];
 
 $placement = json_decode(stripslashes($_POST['map']));
 
-$data["player"][$plyid]['map'] = $placement;
+$data['game'][0]["player"][$plyid]['map'] = $placement;
+$data['game'][0]["player"][$plyid]['placed'] = 1;
 
 file_put_contents($filename, json_encode($data));
 

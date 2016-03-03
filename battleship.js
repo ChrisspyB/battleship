@@ -1,9 +1,16 @@
 'use strict'
 var canvas = document.getElementById('canvasBS');
 var ctx = canvas.getContext('2d'); 
+var default_text = {
+	font: "16px Arial",
+	baseline: 'middle',
+	align:'center',
+	fill:'#000000'
+};
+ctx.font = default_text.font;
+ctx.textBaseline = default_text.baseline;
+ctx.textAlign=default_text.align;
 
-var localplayerindex = 0; //assigned by server, evens play on left.
-var opponentindex = 1; 
 var rot_toggled = false; //
 var draw_rhs = false; // draw the opponents pieces? For debugging.
 var STATE = {
@@ -20,6 +27,7 @@ var COLOR = {
 	hit:'#ffaaaa',
 	miss:'#ddddff'
 };
+var mpgames = 4; //Number of allowed mp games at any one time.
 var shipHeight = [5]; // list of battle ships, def: [5,4,3,3,2]
 var maxHits = 0;
 for (var i=0; i<shipHeight.length; i++){
@@ -32,7 +40,13 @@ var game = {
 	boardSep:32, //separation of two boards
 	boardSqLen:10, //length of boards, in squares
 	state:STATE.menu,
-	mp_lastmove:0
+	//*Multiplayer*
+	lastmove:100,
+	inProgress:false, // marked true whenever player joins a game
+	gameindex:0,
+	localplayerindex:0,//assigned by server, evens play on left.
+	otherplayerindex:1
+
 };
 game.boardLen = game.boardSqLen*game.squareSize;
 
@@ -50,20 +64,24 @@ function GameManager(local){
 }
 GameManager.prototype.newGame = function(mp) {
 	if(mp){
-		console.log('not yet implemented');
+		console.log('mp still under construction...');
 		game.state = STATE.mpGameList;
 		// this.mpSendMove(666);
 		// this.mpWaitMove();
-		this.draw();
 		// return;
+
+		// configure game.localplayerindex here... *
+		if (game.localplayerindex%2 == 0){
+			this.mpSetup();
+		}
 		this.mp = true;
 	}
 	else{
 		this.boards[1].placeRandom();
+		game.state = STATE.placement;
 		this.mp = false;
 	}
 	//shared
-	game.state = STATE.placement;
 	this.draw();
 	document.addEventListener('mousemove',mouseMove);
 };
@@ -93,9 +111,9 @@ GameManager.prototype.mpWaitMove = function() {
 			cache: false,
 			// dataType: 'json',
 			success: function(move){
-				if(move!=game.mp_lastmove){
+				if(move!=game.lastmove){
 					console.log('Opponent move received: '+move);
-					game.mp_lastmove = move;
+					game.lastmove = move;
 
 					//make move and set local turn...
 				
@@ -112,15 +130,18 @@ GameManager.prototype.mpWaitMove = function() {
 			}
 		});
 };
+GameManager.prototype.mpSetup = function() {
+};
 GameManager.prototype.mpSendMove = function(move) {
 	// send move to server
 	$.ajax({
         type: "POST",
         url: "record_move.php",
-        data: {move:move,plyid:localplayerindex}, 
+        data: {move:move,plyid:game.localplayerindex}, 
         cache: false,
         success: function(data){
-            console.log('Move '+move+' received by server')
+            console.log('Move '+move+' received by server');
+            console.log(data);
         },
         error: function(XMLHttpRequest,textStatus,errorThrown){
 			alert('error: '+textStatus + '(' + errorThrown + ')');
@@ -135,11 +156,11 @@ GameManager.prototype.mpReceiveMove = function(move) {
 };
 GameManager.prototype.mpSendPlacement = function() {
 	// body...
-	var sendme = JSON.stringify(this.boards[localplayerindex].map);
+	var sendme = JSON.stringify(this.boards[game.localplayerindex].map);
 	$.ajax({
         type: "POST",
         url: "record_placement.php",
-        data:{map: sendme, plyid:localplayerindex}, 
+        data:{map: sendme, plyid:game.localplayerindex}, 
         cache: false,
         success: function(data){
             console.log('Placement received by server');
@@ -173,16 +194,11 @@ GameManager.prototype.draw = function() {
 	this.boards[1].draw(draw_rhs);
 };
 GameManager.prototype.drawUI = function() {
+		ctx.fillStyle = default_text.fill;
 	if(game.state==STATE.gameOver){	
-		ctx.font = "16px Arial";
-		ctx.textAlign="center";
-		ctx.fillStyle = "#000000";
 		ctx.fillText("Game Over!", canvas.width/2, canvas.height - 50);
 	}else if (game.state==STATE.menu){
 		ctx.clearRect(0,0,canvas.width,canvas.height);
-		ctx.font = "16px Arial";
-		ctx.textAlign="center";
-		ctx.fillStyle = "#000000";
 		ctx.fillText("Single Player vs AI", canvas.width/4, canvas.height/2);
 		ctx.fillText("Online Multiplayer [UNDER CONSTRUCTION]", 3*canvas.width/4, canvas.height/2);
 		ctx.beginPath();
@@ -192,14 +208,24 @@ GameManager.prototype.drawUI = function() {
 	}
 	else if (game.state==STATE.mpGameList){
 		ctx.clearRect(0,0,canvas.width,canvas.height);
-		ctx.font = "16px Arial";
-		ctx.textAlign="center";
-		ctx.fillStyle = "#000000";
-		ctx.fillText("Back", canvas.width/2, 7*canvas.height/8);
+		ctx.fillText("Back", canvas.width/2, 19*canvas.height/20);
+
+		ctx.fillText("Refresh", canvas.width/2, 17*canvas.height/20);
 		ctx.beginPath();
-		ctx.moveTo(0,3*canvas.height/4);
-		ctx.lineTo(canvas.width,3*canvas.height/4);
+		ctx.moveTo(0,16*canvas.height/20);
+		ctx.lineTo(canvas.width,16*canvas.height/20);
+		ctx.moveTo(0,18*canvas.height/20);
+		ctx.lineTo(canvas.width,18*canvas.height/20);
+		ctx.moveTo(0,32);
+		ctx.lineTo(canvas.width,32);
+		ctx.textAlign = 'left';
+		for(var i=1; i<=mpgames; i++){
+			ctx.fillText("Game "+i-1+'. Players: '+ '0/2. Game in progress: ' + 'NO', 16, i*32+16);
+			ctx.moveTo(0,i*32+32);
+			ctx.lineTo(canvas.width,i*32+32);
+		}
 		ctx.stroke();
+		ctx.textAlign = default_text.align;
 	}
 };
 GameManager.prototype.playAI = function(){
@@ -337,10 +363,18 @@ document.addEventListener('click',function(event){
 	if (game.state == STATE.menu){
 		gm.newGame(mouse_x>canvas.width/2);
 	}
-	else if (game.state == STATE.mpGameList && mouse_y>3*canvas.height/4){
-
-		game.state = STATE.menu;
-		gm.draw();
+	else if (game.state == STATE.mpGameList){
+		if (mouse_y>18*canvas.height/20){
+			// return to main menu..
+			game.state = STATE.menu;
+			gm.draw();
+		}else if (mouse_y>16*canvas.height/20){
+			//refresh listings..
+		}
+		else if(mouse_y>32 && mouse_y < mpgames*32+32){
+			var slot = Math.floor((mouse_y-32)/32)
+			//attempt join game slot..
+		}
 	}
 	else if (mouse_x > game.x + game.boardLen && game.state != (STATE.placement || STATE.gameOver)){
 		gm.boards[1].clickSquare(mouse_x,mouse_y,false);
