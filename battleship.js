@@ -2,6 +2,7 @@
 var canvas = document.getElementById('canvasBS');
 var ctx = canvas.getContext('2d'); 
 
+var localplayerindex = 0; //0 or 1. 0 plays left, 1 plays right
 var rot_toggled = false; //
 var draw_rhs = false; // draw the opponents pieces? For debugging.
 var STATE = {
@@ -18,7 +19,7 @@ var COLOR = {
 	hit:'#ffaaaa',
 	miss:'#ddddff'
 };
-var shipHeight = [5,4,3,3,2]; // list of battle ships, def: [5,4,3,3,2]
+var shipHeight = [5]; // list of battle ships, def: [5,4,3,3,2]
 var maxHits = 0;
 for (var i=0; i<shipHeight.length; i++){
 	maxHits += shipHeight[i];
@@ -49,11 +50,11 @@ GameManager.prototype.newGame = function(mp) {
 	if(mp){
 		console.log('not yet implemented');
 		game.state = STATE.mpGameList;
-		// this.mpSendMove(9);
+		// this.mpSendMove(666);
 		this.mpWaitMove();
 		this.draw();
 		return;
-		this.mp = true;
+		// this.mp = true;
 	}
 	else{
 		this.boards[1].placeRandom();
@@ -62,6 +63,7 @@ GameManager.prototype.newGame = function(mp) {
 	//shared
 	game.state = STATE.placement;
 	this.draw();
+	document.addEventListener('mousemove',mouseMove);
 };
 GameManager.prototype.nextPlayer = function(move) {
 	if(game.state == STATE.gameOver){
@@ -84,13 +86,13 @@ GameManager.prototype.nextPlayer = function(move) {
 GameManager.prototype.mpWaitMove = function() {
 	$.ajax({
 			type: "GET",
-			url: "serverside.php?moving=0&timestamp="+this.timestamp,
+			url: "serverside.php?timestamp="+this.timestamp,
 			async: true,
 			cache: false,
 			dataType: 'json',
 			success: function(data){
 				var json = data;
-				if(json['move']<100){
+				if(json['move']>100){
 					alert(json['move']);
 				}
 				else{
@@ -107,15 +109,56 @@ GameManager.prototype.mpWaitMove = function() {
 };
 GameManager.prototype.mpSendMove = function(move) {
 	// send move to server
-
-	var xmlhttp = new XMLHttpRequest();
-	xmlhttp.open("GET","serverside.php?moving=1&move="+String(move),true);
-	xmlhttp.send();
+	$.ajax({
+        type: "POST",
+        url: "submove.php",
+        data: {move:move}, 
+        cache: false,
+        success: function(data){
+            console.log('Move '+move+' received by server')
+        },
+        error: function(XMLHttpRequest,textStatus,errorThrown){
+			alert('error: '+textStatus + '(' + errorThrown + ')');
+			console.log('error: '+textStatus + '(' + errorThrown + ')');
+		}
+    });
 
 };
 GameManager.prototype.mpReceiveMove = function(move) {
 	this.boards[game.state = game.state == STATE.rightTurn ? 0 : 1].shootSquare(move%10,Math.floor(move/10));
 	this.nextPlayer(100);
+};
+GameManager.prototype.mpSendPlacement = function() {
+	// body...
+	var sendme = JSON.stringify(this.boards[localplayerindex].map);
+	console.log(sendme);
+	$.ajax({
+        type: "POST",
+        url: "placement.php",
+        data:{data: sendme}, 
+        cache: false,
+        success: function(data){
+            alert(data);
+        },
+        error: function(XMLHttpRequest,textStatus,errorThrown){
+			alert('error: '+textStatus + '(' + errorThrown + ')');
+			console.log('error: '+textStatus + '(' + errorThrown + ')');
+		}
+    });
+};
+GameManager.prototype.finishPlacement = function() {
+	if(this.mp){
+		console.log('Local placement finished. Waiting...')
+		//upload placement...
+		gm.mpSendPlacement();
+		//wait for and download opponent's placement
+		//
+	}
+	else{
+		game.state = STATE.leftTurn;
+		ctx.clearRect(0,game.boardSqLen+game.y,canvas.width,canvas.height);
+		gm.draw();
+	}
 };
 GameManager.prototype.draw = function() {
 	this.drawUI();
@@ -135,7 +178,7 @@ GameManager.prototype.drawUI = function() {
 		ctx.textAlign="center";
 		ctx.fillStyle = "#000000";
 		ctx.fillText("Single Player vs AI", canvas.width/4, canvas.height/2);
-		ctx.fillText("Online Multiplayer", 3*canvas.width/4, canvas.height/2);
+		ctx.fillText("Online Multiplayer [UNDER CONSTRUCTION]", 3*canvas.width/4, canvas.height/2);
 		ctx.beginPath();
 		ctx.moveTo(canvas.width/2,0);
 		ctx.lineTo(canvas.width/2,canvas.height);
@@ -325,14 +368,12 @@ function mouseMove (event) {
 	ctx.closePath();
 
 	if (gm.boards[0].ships >= shipHeight.length){
-		game.state = STATE.leftTurn;
-		ctx.clearRect(0,game.boardSqLen+game.y,canvas.width,canvas.height);
-		gm.draw();
+		gm.finishPlacement();
 		document.removeEventListener('mousemove',mouseMove);
 		return;
 	}
 }
-document.addEventListener('mousemove',mouseMove);
+// document.addEventListener('mousemove',mouseMove);
 
 document.addEventListener('keyup',function(event){
 	if (event.keyCode == 32){

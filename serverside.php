@@ -1,35 +1,24 @@
 <?php 
 
 $filename = dirname(__FILE__).'/playerinfo.json';
-
-if($_GET['moving']==1){
 	
-	$jsonstr = file_get_contents($filename);
-	$data = json_decode($jsonstr,true);
+$lastmodif = isset($_GET['timestamp']) ? $_GET['timestamp'] : 0;
+$currentmodif = filemtime($filename); 
 
-	$data["player1"]['lastmove'] = (int) $_GET["move"];
-	
-	file_put_contents($filename, json_encode($data));
+while ($currentmodif <= $lastmodif) {
+	usleep(10000);
+	clearstatcache();
+	$currentmodif = filemtime($filename);
 }
-else if ($_GET['moving']==0){
-	
-	$lastmodif = isset($_GET['timestamp']) ? $_GET['timestamp'] : 0;
-	$currentmodif = filemtime($filename); 
 
-	while ($currentmodif <= $lastmodif) {
-		usleep(10000);
-		clearstatcache();
-		$currentmodif = filemtime($filename);
-	}
+$jsonstr = file_get_contents($filename);
+$data = json_decode($jsonstr,true);
 
-	$jsonstr = file_get_contents($filename);
-	$data = json_decode($jsonstr,true);
+$response = array();
+$response['move'] 		= $data["player"][0]['lastmove'];
+$response['timestamp'] 	= $currentmodif;
 
-	$response = array();
-	$response['move'] 		= $data["player1"]['lastmove'];
-	$response['timestamp'] 	= $currentmodif;
+echo json_encode($response);
 
-	echo json_encode($response);
-}
 
 ?>
