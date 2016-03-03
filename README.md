@@ -1,6 +1,6 @@
 # battleship
 Clone of the classic Battleship tabletop game.
 Play it here: https://rawgit.com/ChrisspyB/battleship/master/index.html
+Note: This link will only work for singleplayer games
 
-
-Todo: Better AI
+Currently working on multiplayer
