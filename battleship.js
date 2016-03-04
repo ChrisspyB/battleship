@@ -1,4 +1,7 @@
 'use strict'
+
+//*GameManager should probably be a simple object, without all this prototyping...*
+
 var canvas = document.getElementById('canvasBS');
 var ctx = canvas.getContext('2d'); 
 var default_text = {
@@ -27,7 +30,7 @@ var COLOR = {
 	hit:'#ffaaaa',
 	miss:'#ddddff'
 };
-var mpgames = 4; //Number of allowed mp games at any one time.
+var mpgames = 4; //Number of allowed mp games at any one time. MUST MANUALLY CHANGE NUMBER OF JSON ENTRIES IF THIS IS CHANGED.
 var shipHeight = [5]; // list of battle ships, def: [5,4,3,3,2]
 var maxHits = 0;
 for (var i=0; i<shipHeight.length; i++){
@@ -43,11 +46,15 @@ var game = {
 	//*Multiplayer*
 	lastmove:100,
 	inProgress:false, // marked true whenever player joins a game
-	gameindex:0,
-	localplayerindex:0,//assigned by server, evens play on left.
-	otherplayerindex:1
-
+	svPlayers:[],
+	svRefreshing:false,
+	gameindex:mpgames, //which mp game are we playing? if !<mpgames, we aren't playing any
+	localplayerindex:mpgames*2,//assigned by server, evens play on left.
+	otherplayerindex:mpgames*2,
 };
+for (var i=0; i<mpgames; i++){
+	game.svPlayers.push(2);
+}
 game.boardLen = game.boardSqLen*game.squareSize;
 
 var mark = {
@@ -60,7 +67,6 @@ function GameManager(local){
 					new Board(game.x + game.boardLen + game.boardSep, game.y,this)];
 	this.aiMoves=[]; // * TEMP METHOD OF HANDLING AI
 	this.mp = false;
-	this.timestamp = null;
 }
 GameManager.prototype.newGame = function(mp) {
 	if(mp){
@@ -75,14 +81,15 @@ GameManager.prototype.newGame = function(mp) {
 			this.mpSetup();
 		}
 		this.mp = true;
+		this.mpRefreshListings();
 	}
 	else{
 		this.boards[1].placeRandom();
 		game.state = STATE.placement;
 		this.mp = false;
+		this.draw();
 	}
 	//shared
-	this.draw();
 	document.addEventListener('mousemove',mouseMove);
 };
 GameManager.prototype.nextPlayer = function(move) {
@@ -109,7 +116,6 @@ GameManager.prototype.mpWaitMove = function() {
 			url: "get_move.php",
 			async: true,
 			cache: false,
-			// dataType: 'json',
 			success: function(move){
 				if(move!=game.lastmove){
 					console.log('Opponent move received: '+move);
@@ -144,7 +150,7 @@ GameManager.prototype.mpSendMove = function(move) {
             console.log(data);
         },
         error: function(XMLHttpRequest,textStatus,errorThrown){
-			alert('error: '+textStatus + '(' + errorThrown + ')');
+			alert('Error: Move could not be sent.');
 			console.log('error: '+textStatus + '(' + errorThrown + ')');
 		}
     });
@@ -167,10 +173,66 @@ GameManager.prototype.mpSendPlacement = function() {
             console.log(data);
         },
         error: function(XMLHttpRequest,textStatus,errorThrown){
-			alert('error: '+textStatus + '(' + errorThrown + ')');
+			alert('Error: Could not send placement to server.');
 			console.log('error: '+textStatus + '(' + errorThrown + ')');
 		}
     });
+};
+GameManager.prototype.mpRefreshListings = function() {
+	game.svRefreshing = true;
+	this.drawUI();
+	$.ajax({
+			type: "POST",
+			url: "refresh_listings.php",
+			async: true,
+			cache: false,
+			dataType: 'json',
+			success: function(data){
+				console.log('Player list refreshed...')
+				for (var i=0; i<game.svPlayers.length; i++){
+					game.svPlayers[i]=data[i];
+				}
+					game.svRefreshing = false;
+					gm.drawUI(); //*!!!*
+			},
+			error: function(XMLHttpRequest,textStatus,errorThrown){
+				game.svRefreshing = false;
+				gm.drawUI(); //*!!!*
+				alert('Error: Could not refresh server listing.');
+			}
+		});
+};
+GameManager.prototype.mpJoinGame = function(slot) {
+	// if slot<0, leave current game but do not join any.
+	$.ajax({
+			type: "POST",
+			url: "join_game.php",
+			async: true,
+			cache: false,
+			data:{game:slot, plyindex:game.localplayerindex},
+			success: function(index){
+				var index = parseInt(index);
+				if(index>=0){
+					game.localplayerindex = slot*2+index;
+					game.otherplayerindex = index==0 ? 
+						game.localplayerindex+1 : game.localplayerindex-1;
+					game.gameindex=slot;
+					console.log('Joining game '+slot+' as player '+game.localplayerindex);
+				}else{
+					console.log('No game joined. Any active game disconnected.');
+					game.localplayerindex = mpgames*2;
+					game.otherplayerindex = mpgames*2;
+					game.gameindex = mpgames;
+				}
+				gm.mpRefreshListings(); //*!!!*
+
+				// start game ...
+
+			},
+			error: function(XMLHttpRequest,textStatus,errorThrown){
+				alert('Error: An error occured while trying to join...');
+			}
+		});
 };
 GameManager.prototype.finishPlacement = function() {
 	if(this.mp){
@@ -209,8 +271,8 @@ GameManager.prototype.drawUI = function() {
 	else if (game.state==STATE.mpGameList){
 		ctx.clearRect(0,0,canvas.width,canvas.height);
 		ctx.fillText("Back", canvas.width/2, 19*canvas.height/20);
-
-		ctx.fillText("Refresh", canvas.width/2, 17*canvas.height/20);
+		ctx.fillText("Refresh"+(game.svRefreshing?'ing':''),
+			canvas.width/2, 17*canvas.height/20);
 		ctx.beginPath();
 		ctx.moveTo(0,16*canvas.height/20);
 		ctx.lineTo(canvas.width,16*canvas.height/20);
@@ -219,8 +281,15 @@ GameManager.prototype.drawUI = function() {
 		ctx.moveTo(0,32);
 		ctx.lineTo(canvas.width,32);
 		ctx.textAlign = 'left';
+		var msg;
 		for(var i=1; i<=mpgames; i++){
-			ctx.fillText("Game "+i-1+'. Players: '+ '0/2. Game in progress: ' + 'NO', 16, i*32+16);
+			if (i-1==game.gameindex){
+				msg = 'You have joined this game. Waiting for opponent...';
+			}else{
+				msg = game.svPlayers[i-1]<2 ? 'Click to join.':'Game full.';
+			}
+			ctx.fillText("Game "+(i-1)+'. Players: '+game.svPlayers[i-1]+
+				'/2. '+msg, 16, i*32+16);
 			ctx.moveTo(0,i*32+32);
 			ctx.lineTo(canvas.width,i*32+32);
 		}
@@ -366,14 +435,19 @@ document.addEventListener('click',function(event){
 	else if (game.state == STATE.mpGameList){
 		if (mouse_y>18*canvas.height/20){
 			// return to main menu..
+			gm.mpJoinGame(-1);
 			game.state = STATE.menu;
 			gm.draw();
 		}else if (mouse_y>16*canvas.height/20){
 			//refresh listings..
+			gm.mpRefreshListings();
 		}
 		else if(mouse_y>32 && mouse_y < mpgames*32+32){
 			var slot = Math.floor((mouse_y-32)/32)
-			//attempt join game slot..
+			if(game.svPlayers[slot]<2 && game.gameindex!=slot){	
+				//attempt join game slot..
+				gm.mpJoinGame(slot);
+			}
 		}
 	}
 	else if (mouse_x > game.x + game.boardLen && game.state != (STATE.placement || STATE.gameOver)){
@@ -422,6 +496,15 @@ document.addEventListener('keyup',function(event){
 	}
 });
 
+
 function waitMove(){
 	gm.mpWaitMove();
 }
+
+$(window).bind('beforeunload',function(){
+	//Disconnect from active games. I doubt this will be sufficent.
+	if(game.state == STATE.mpGameList){
+		console.log('Attempting to update json...');
+		gm.mpJoinGame(-1);
+	}
+})

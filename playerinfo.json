@@ -1,31 +1,36 @@
 {
 	"game":
 		[{
+			"players":0,
 			"player":
 				[
-					{"name":"Alice","lastmove":16,"placed":1},
-					{"name":"Bill","lastmove":100,"placed":0}
+					{"lastmove":100,"placed":0,"map":0},
+					{"lastmove":100,"placed":0,"map":0}
 				]
 		},
 		{
+			"players":0,
 			"player":
 				[
-					{"name":"Charlie","lastmove":666,"placed":1},
-					{"name":"Diana","lastmove":100,"placed":0}
+					{"lastmove":100,"placed":0,"map":0},
+					{"lastmove":100,"placed":0,"map":0}
 				]
 		},
 		{
+			"players":0,
 			"player":
 				[
-					{"name":"Ed","lastmove":666,"placed":1},
-					{"name":"Frank","lastmove":100,"placed":0}
+					{"lastmove":100,"placed":0,"map":0},
+					{"lastmove":100,"placed":0,"map":0}
 				]
 		},
 		{
+			"players":0,
 			"player":
 				[
-					{"name":"Gary","lastmove":666,"placed":1},
-					{"name":"Hilda","lastmove":100,"placed":0}
+					{"lastmove":100,"placed":0,"map":0},
+					{"lastmove":100,"placed":0,"map":0}
 				]
-		}]	
+		}
+		]	
 }
