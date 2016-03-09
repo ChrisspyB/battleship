@@ -1,7 +1,7 @@
 'use strict'
 
 //*GameManager should probably be a simple object, without all this prototyping...*
-
+//*Need to implement client timeout*
 var canvas = document.getElementById('canvasBS');
 var ctx = canvas.getContext('2d'); 
 var default_text = {
@@ -48,6 +48,7 @@ var game = {
 	inProgress:false, // marked true whenever player joins a game
 	svPlayers:[],
 	svRefreshing:false,
+	svAutoRefresh:false,
 	gameindex:mpgames, //which mp game are we playing? if !<mpgames, we aren't playing any
 	localplayerindex:mpgames*2,//assigned by server, evens play on left.
 	otherplayerindex:mpgames*2,
@@ -72,6 +73,7 @@ GameManager.prototype.newGame = function(mp) {
 	if(mp){
 		console.log('mp still under construction...');
 		game.state = STATE.mpGameList;
+		game.svAutoRefresh = true;
 		// this.mpSendMove(666);
 		// this.mpWaitMove();
 		// return;
@@ -147,8 +149,7 @@ GameManager.prototype.mpSendMove = function(move) {
         cache: false,
         success: function(data){
             console.log('Move '+move+' received by server');
-            console.log(data);
-        },
+		},
         error: function(XMLHttpRequest,textStatus,errorThrown){
 			alert('Error: Move could not be sent.');
 			console.log('error: '+textStatus + '(' + errorThrown + ')');
@@ -179,6 +180,11 @@ GameManager.prototype.mpSendPlacement = function() {
     });
 };
 GameManager.prototype.mpRefreshListings = function() {
+	if(game.state != STATE.mpGameList){
+		game.svAutoRefresh = true;
+		game.svRefreshing=false;
+		return;
+	}
 	game.svRefreshing = true;
 	this.drawUI();
 	$.ajax({
@@ -194,6 +200,9 @@ GameManager.prototype.mpRefreshListings = function() {
 				}
 					game.svRefreshing = false;
 					gm.drawUI(); //*!!!*
+					if(game.svAutoRefresh){
+						setTimeout('gm.mpRefreshListings()',10000);
+					}
 			},
 			error: function(XMLHttpRequest,textStatus,errorThrown){
 				game.svRefreshing = false;
@@ -212,7 +221,7 @@ GameManager.prototype.mpJoinGame = function(slot) {
 			data:{game:slot, plyindex:game.localplayerindex},
 			success: function(index){
 				var index = parseInt(index);
-				if(index>=0){
+				if(index==0 || index == 1){
 					game.localplayerindex = slot*2+index;
 					game.otherplayerindex = index==0 ? 
 						game.localplayerindex+1 : game.localplayerindex-1;
@@ -487,12 +496,10 @@ function mouseMove (event) {
 		return;
 	}
 }
-// document.addEventListener('mousemove',mouseMove);
 
 document.addEventListener('keyup',function(event){
 	if (event.keyCode == 32){
 		rot_toggled = ~rot_toggled;
-		// mouseMove(event);
 	}
 });
 
@@ -504,7 +511,10 @@ function waitMove(){
 $(window).bind('beforeunload',function(){
 	//Disconnect from active games. I doubt this will be sufficent.
 	if(game.state == STATE.mpGameList){
-		console.log('Attempting to update json...');
+		console.log('Attempting to tell json im leaving...');
+		game.state = STATE.menu;
 		gm.mpJoinGame(-1);
+	}else if (game.state <STATE.gameOver){
+		//.. disconnect game and declare other winner.
 	}
 })

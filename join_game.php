@@ -1,24 +1,28 @@
 <?php 
 
-$filename = dirname(__FILE__).'/playerinfo.json';
-$jsonstr = file_get_contents($filename);
-$data = json_decode($jsonstr,true);
+include('common.php');
+
 $slot = (int) $_POST["game"];
-$plyindex = (int) $_POST["plyindex"];
 
-if ($plyindex < count($data['game'])*2){
-	//remove player from previous game
-	$data['game'][floor($plyindex/2)]['player'][$plyindex%2];
-	$data['game'][floor($plyindex/2)]['players']-=1;
+if ($plyid < count($data['game'])*2){
+	//remove player from previous game 
+	$data['game'][floor($plyid/2)]['player'][$plyid%2]['locked'] = 0;
+	$data['game'][floor($plyid/2)]['players']-=1;
 }
-if($slot>=0){
-	$response_index = $data['game'][$slot]['players'];
 
-	if ($response_index<2){
+if($slot>=0){
+	$new_id = $data['game'][$slot]['players'];
+
+	if ($new_id<2){
 		//update json
 		$data['game'][$slot]['players']++;
+		if ($data['game'][$slot]['player'][$new_id]['locked']==1){
+			$new_id = $new_id==1 ? 0 : 1;
+		}
+		$data['game'][$slot]['player'][$new_id]['last_comm'] = time();
+		$data['game'][$slot]['player'][$new_id]['locked'] = 1;
 	}
-	echo intval($response_index);	
+	echo $new_id;
 }
 
 file_put_contents($filename, json_encode($data));
