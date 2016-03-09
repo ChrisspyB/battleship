@@ -1,5 +1,7 @@
 'use strict'
 
+// This code is very much a work in progress.
+
 //*GameManager should probably be a simple object, without all this prototyping...*
 //*Need to implement client timeout*
 var canvas = document.getElementById('canvasBS');
@@ -77,18 +79,13 @@ GameManager.prototype.newGame = function(mp) {
 		// this.mpSendMove(666);
 		// this.mpWaitMove();
 		// return;
-
-		// configure game.localplayerindex here... *
-		if (game.localplayerindex%2 == 0){
-			this.mpSetup();
-		}
 		this.mp = true;
 		this.mpRefreshListings();
 	}
 	else{
 		this.boards[1].placeRandom();
-		game.state = STATE.placement;
 		this.mp = false;
+		game.state = STATE.placement;
 		this.draw();
 	}
 	//shared
@@ -116,19 +113,20 @@ GameManager.prototype.mpWaitMove = function() {
 	$.ajax({
 			type: "POST",
 			url: "get_move.php",
+			data:{plyid:game.localplayerindex},
 			async: true,
 			cache: false,
 			success: function(move){
-				if(move!=game.lastmove){
+				var move = parseInt(move);
+				if(move>=0 && move<100 && move!=game.lastmove){
 					console.log('Opponent move received: '+move);
 					game.lastmove = move;
-
-					//make move and set local turn...
-				
+					gm.boards[0].shootSquare(move%10,Math.floor(move/10)); //***gm
+					game.state = STATE.leftTurn;
 				}
 				else{
 					console.log('no new move yet');
-					setTimeout('waitMove()',2500);
+					setTimeout('gm.mpWaitMove()',2500);
 				}
 			},
 				error: function(XMLHttpRequest,textStatus,errorThrown){
@@ -137,8 +135,6 @@ GameManager.prototype.mpWaitMove = function() {
 				setTimeout('waitMove()',15000);
 			}
 		});
-};
-GameManager.prototype.mpSetup = function() {
 };
 GameManager.prototype.mpSendMove = function(move) {
 	// send move to server
@@ -149,6 +145,7 @@ GameManager.prototype.mpSendMove = function(move) {
         cache: false,
         success: function(data){
             console.log('Move '+move+' received by server');
+            gm.mpWaitMove();
 		},
         error: function(XMLHttpRequest,textStatus,errorThrown){
 			alert('Error: Move could not be sent.');
@@ -163,15 +160,59 @@ GameManager.prototype.mpReceiveMove = function(move) {
 };
 GameManager.prototype.mpSendPlacement = function() {
 	// body...
-	var sendme = JSON.stringify(this.boards[game.localplayerindex].map);
+	var placement = [];
+	for (var i=0; i<10; i++){
+		for(var j=0; j<10; j++){
+			if (this.boards[0].map[i][j] == mark.ship ){
+				placement.push(i+j*10);
+			}
+		}
+	}
+	var sendme = JSON.stringify(placement);
 	$.ajax({
         type: "POST",
         url: "record_placement.php",
-        data:{map: sendme, plyid:game.localplayerindex}, 
+        data:{placement: sendme, plyid:game.localplayerindex}, 
         cache: false,
         success: function(data){
             console.log('Placement received by server');
-            console.log(data);
+            gm.mpGetPlacement(); //***
+        },
+        error: function(XMLHttpRequest,textStatus,errorThrown){
+			alert('Error: Could not send placement to server.');
+			console.log('error: '+textStatus + '(' + errorThrown + ')');
+
+			// ** RETRY? **
+		}
+    });
+};
+GameManager.prototype.mpGetPlacement = function() {
+	$.ajax({
+        type: "POST",
+        url: "get_placement.php",
+        data:{plyid:game.localplayerindex}, 
+        cache: false,
+        dataType: 'json',
+        success: function(data){
+        	console.log('Getting placement. Got: ' + data);
+        	if (data == 0){
+            	console.log('Waiting for other player to place...');
+            	setTimeout('gm.mpGetPlacement()',5000); //***
+        	}else {
+            	console.log('Other players placement received');
+            	for(var i=0; i<data.length; i++){
+            		var x = data[i]%10;
+            		var y = Math.floor(data[i]/10);
+            		gm.boards[1].map[x][y] = mark.ship;
+            	}
+				game.state = game.localplayerindex%2==0 ? STATE.leftTurn : STATE.rightTurn;
+				console.log(game.localplayerindex);
+				if(game.state==STATE.rightTurn){
+					gm.mpWaitMove();
+				}
+				gm.draw();
+            	//commence game
+        	}
         },
         error: function(XMLHttpRequest,textStatus,errorThrown){
 			alert('Error: Could not send placement to server.');
@@ -198,11 +239,16 @@ GameManager.prototype.mpRefreshListings = function() {
 				for (var i=0; i<game.svPlayers.length; i++){
 					game.svPlayers[i]=data[i];
 				}
-					game.svRefreshing = false;
-					gm.drawUI(); //*!!!*
-					if(game.svAutoRefresh){
-						setTimeout('gm.mpRefreshListings()',10000);
-					}
+				game.svRefreshing = false;
+				gm.drawUI(); //*!!!*
+
+				if(game.svPlayers[game.gameindex]==2){
+					console.log('Game has two players, attempting to start game..');
+					gm.mpBeginGame(); //*!!!*
+				}
+				else if(game.svAutoRefresh){
+					setTimeout('gm.mpRefreshListings()',10000);
+				}
 			},
 			error: function(XMLHttpRequest,textStatus,errorThrown){
 				game.svRefreshing = false;
@@ -218,7 +264,7 @@ GameManager.prototype.mpJoinGame = function(slot) {
 			url: "join_game.php",
 			async: true,
 			cache: false,
-			data:{game:slot, plyindex:game.localplayerindex},
+			data:{game:slot, plyid:game.localplayerindex},
 			success: function(index){
 				var index = parseInt(index);
 				if(index==0 || index == 1){
@@ -243,14 +289,15 @@ GameManager.prototype.mpJoinGame = function(slot) {
 			}
 		});
 };
+GameManager.prototype.mpBeginGame = function() {
+	game.state = STATE.placement;
+	this.draw();
+};
 GameManager.prototype.finishPlacement = function() {
 	if(this.mp){
 		console.log('Local placement finished...')
-		//upload placement...
+		//upload placement and wait for other player
 		gm.mpSendPlacement();
-		//wait for and download opponent's placement
-		
-		//
 	}
 	else{
 		game.state = STATE.leftTurn;

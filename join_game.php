@@ -6,8 +6,8 @@ $slot = (int) $_POST["game"];
 
 if ($plyid < count($data['game'])*2){
 	//remove player from previous game 
-	$data['game'][floor($plyid/2)]['player'][$plyid%2]['locked'] = 0;
-	$data['game'][floor($plyid/2)]['players']-=1;
+	$data['game'][$gameid]['player'][$gameplyid]['locked'] = 0;
+	$data['game'][$gameid]['players']-=1;
 }
 
 if($slot>=0){
