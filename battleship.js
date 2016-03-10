@@ -33,7 +33,7 @@ var COLOR = {
 	miss:'#ddddff'
 };
 var mpgames = 4; //Number of allowed mp games at any one time. MUST MANUALLY CHANGE NUMBER OF JSON ENTRIES IF THIS IS CHANGED.
-var shipHeight = [5]; // list of battle ships, def: [5,4,3,3,2]
+var shipHeight = [5,4,3,3,2]; // list of battle ships, def: [5,4,3,3,2]
 var maxHits = 0;
 for (var i=0; i<shipHeight.length; i++){
 	maxHits += shipHeight[i];
@@ -73,7 +73,6 @@ function GameManager(local){
 }
 GameManager.prototype.newGame = function(mp) {
 	if(mp){
-		console.log('mp still under construction...');
 		game.state = STATE.mpGameList;
 		game.svAutoRefresh = true;
 		// this.mpSendMove(666);
@@ -94,15 +93,13 @@ GameManager.prototype.newGame = function(mp) {
 GameManager.prototype.nextPlayer = function(move) {
 	if(game.state == STATE.gameOver){
 		this.drawUI();
+		if (this.mp){this.mpSendMove(move);}
 		return;
 	}
 	game.state = game.state == STATE.rightTurn ? STATE.leftTurn : STATE.rightTurn;
 	if (this.mp){
 		if (move<100){ //end local player's turn
 			this.mpSendMove(move);
-		}
-		else{ // begin local player's turn
-
 		}
 	}
 	else{
@@ -121,8 +118,8 @@ GameManager.prototype.mpWaitMove = function() {
 				if(move>=0 && move<100 && move!=game.lastmove){
 					console.log('Opponent move received: '+move);
 					game.lastmove = move;
-					gm.boards[0].shootSquare(move%10,Math.floor(move/10)); //***gm
 					game.state = STATE.leftTurn;
+					gm.boards[0].shootSquare(move%10,Math.floor(move/10)); //***gm
 				}
 				else{
 					console.log('no new move yet');
@@ -145,6 +142,7 @@ GameManager.prototype.mpSendMove = function(move) {
         cache: false,
         success: function(data){
             console.log('Move '+move+' received by server');
+            if(game.state == STATE.gameOver){return;}
             gm.mpWaitMove();
 		},
         error: function(XMLHttpRequest,textStatus,errorThrown){
