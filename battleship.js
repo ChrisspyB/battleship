@@ -1,8 +1,5 @@
 'use strict'
 
-// This code is very much a work in progress.
-
-//*GameManager should probably be a simple object, without all this prototyping...*
 //*Need to implement client timeout*
 var canvas = document.getElementById('canvasBS');
 var ctx = canvas.getContext('2d'); 
@@ -109,6 +106,7 @@ GameManager.prototype.nextPlayer = function(move) {
 	}
 };
 GameManager.prototype.mpWaitMove = function() {
+	var manager = this;
 	$.ajax({
 			type: "POST",
 			url: "get_move.php",
@@ -121,31 +119,34 @@ GameManager.prototype.mpWaitMove = function() {
 					console.log('Opponent move received: '+move);
 					game.lastmove = move;
 					game.state = STATE.leftTurn;
-					gm.boards[0].shootSquare(move%10,Math.floor(move/10)); //***gm
+					manager.boards[0].shootSquare(move%10,Math.floor(move/10));
 				}
 				else{
 					console.log('no new move yet');
-					setTimeout('gm.mpWaitMove()',2500);
+					setTimeout(function(){manager.mpWaitMove()},2500);
 				}
 			},
 				error: function(XMLHttpRequest,textStatus,errorThrown){
 				alert('error: '+textStatus + '(' + errorThrown + ')');
 				console.log('error: '+textStatus + '(' + errorThrown + ')');
-				setTimeout('waitMove()',15000);
+
+				setTimeout(function(){manager.mpWaitMove()},15000);
 			}
 		});
 };
 GameManager.prototype.mpSendMove = function(move) {
 	// send move to server
+	var manager = this;
 	$.ajax({
         type: "POST",
         url: "record_move.php",
         data: {move:move,plyid:game.localplayerindex}, 
         cache: false,
         success: function(data){
+        	console.log(manager.mp + 'yoooooooo');
             console.log('Move '+move+' received by server');
             if(game.state == STATE.gameOver){return;}
-            gm.mpWaitMove();
+            manager.mpWaitMove();
 		},
         error: function(XMLHttpRequest,textStatus,errorThrown){
 			alert('Error: Move could not be sent.');
@@ -169,6 +170,7 @@ GameManager.prototype.mpSendPlacement = function() {
 		}
 	}
 	var sendme = JSON.stringify(placement);
+	var manager = this;
 	$.ajax({
         type: "POST",
         url: "record_placement.php",
@@ -176,7 +178,7 @@ GameManager.prototype.mpSendPlacement = function() {
         cache: false,
         success: function(data){
             console.log('Placement received by server');
-            gm.mpGetPlacement(); //***
+            manager.mpGetPlacement(); 
         },
         error: function(XMLHttpRequest,textStatus,errorThrown){
 			alert('Error: Could not send placement to server.');
@@ -187,6 +189,7 @@ GameManager.prototype.mpSendPlacement = function() {
     });
 };
 GameManager.prototype.mpGetPlacement = function() {
+	var manager = this;
 	$.ajax({
         type: "POST",
         url: "get_placement.php",
@@ -197,20 +200,20 @@ GameManager.prototype.mpGetPlacement = function() {
         	console.log('Getting placement. Got: ' + data);
         	if (data == 0){
             	console.log('Waiting for other player to place...');
-            	setTimeout('gm.mpGetPlacement()',5000); //***
+            	setTimeout(function(){manager.mpGetPlacement()},5000); 
         	}else {
             	console.log('Other players placement received');
             	for(var i=0; i<data.length; i++){
             		var x = data[i]%10;
             		var y = Math.floor(data[i]/10);
-            		gm.boards[1].map[x][y] = mark.ship;
+            		manager.boards[1].map[x][y] = mark.ship;
             	}
 				game.state = game.localplayerindex%2==0 ? STATE.leftTurn : STATE.rightTurn;
 				console.log(game.localplayerindex);
 				if(game.state==STATE.rightTurn){
-					gm.mpWaitMove();
+					manager.mpWaitMove();
 				}
-				gm.draw();
+				manager.draw();
             	//commence game
         	}
         },
@@ -228,6 +231,7 @@ GameManager.prototype.mpRefreshListings = function() {
 	}
 	game.svRefreshing = true;
 	this.drawUI();
+	var manager = this;
 	$.ajax({
 			type: "POST",
 			url: "refresh_listings.php",
@@ -240,25 +244,26 @@ GameManager.prototype.mpRefreshListings = function() {
 					game.svPlayers[i]=data[i];
 				}
 				game.svRefreshing = false;
-				gm.drawUI(); //*!!!*
+				manager.drawUI(); 
 
 				if(game.svPlayers[game.gameindex]==2){
 					console.log('Game has two players, attempting to start game..');
-					gm.mpBeginGame(); //*!!!*
+					manager.mpBeginGame(); 
 				}
 				else if(game.svAutoRefresh){
-					setTimeout('gm.mpRefreshListings()',10000);
+					setTimeout(function(){manager.mpRefreshListings()},10000);
 				}
 			},
 			error: function(XMLHttpRequest,textStatus,errorThrown){
 				game.svRefreshing = false;
-				gm.drawUI(); //*!!!*
+				manager.drawUI(); 
 				alert('Error: Could not refresh server listing.');
 			}
 		});
 };
 GameManager.prototype.mpJoinGame = function(slot) {
 	// if slot<0, leave current game but do not join any.
+	var manager = this;
 	$.ajax({
 			type: "POST",
 			url: "join_game.php",
@@ -279,9 +284,7 @@ GameManager.prototype.mpJoinGame = function(slot) {
 					game.otherplayerindex = mpgames*2;
 					game.gameindex = mpgames;
 				}
-				gm.mpRefreshListings(); //*!!!*
-
-				// start game ...
+				manager.mpRefreshListings(); 
 
 			},
 			error: function(XMLHttpRequest,textStatus,errorThrown){
@@ -297,12 +300,12 @@ GameManager.prototype.finishPlacement = function() {
 	if(this.mp){
 		console.log('Local placement finished...')
 		//upload placement and wait for other player
-		gm.mpSendPlacement();
+		this.mpSendPlacement();
 	}
 	else{
 		game.state = STATE.leftTurn;
 		ctx.clearRect(0,game.boardSqLen+game.y,canvas.width,canvas.height);
-		gm.draw();
+		this.draw();
 	}
 };
 GameManager.prototype.draw = function() {
@@ -373,10 +376,10 @@ GameManager.prototype.playAI = function(){
 	this.nextPlayer(0);
 }
 
-function Board(x,y,gm){
+function Board(x,y,game_manager){
 	this.x = x;
 	this.y = y;
-	this.manager = gm;
+	this.manager = game_manager;
 	this.ships = 0;
 	this.health = maxHits;
 	this.friendly = true; // Does the board belong to the local player
@@ -446,7 +449,7 @@ Board.prototype.drawSquare = function(i,j,showShips) {
 	ctx.stroke();
 	ctx.closePath();
 
-};
+};	
 Board.prototype.shootSquare = function(i,j) {
 	this.map[i][j] = this.map[i][j] | mark.shot;
 	if (this.map[i][j] & mark.ship){
@@ -555,11 +558,6 @@ document.addEventListener('keyup',function(event){
 	document.dispatchEvent(temp_move);
 	}
 });
-
-
-function waitMove(){
-	gm.mpWaitMove();
-}
 
 $(window).bind('beforeunload',function(){
 	//Disconnect from active games. I doubt this will be sufficent.
