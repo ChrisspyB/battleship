@@ -17,6 +17,8 @@ ctx.textBaseline = default_text.baseline;
 ctx.textAlign=default_text.align;
 
 var rot_toggled = false; //
+var TEMP_mouse_pos_X // Temporary fix to rotation lag
+var TEMP_mouse_pos_Y // in placement phase. Make it more elegant.
 var draw_rhs = false; // draw the opponents pieces? For debugging.
 var STATE = {
 	placement:0,
@@ -518,6 +520,8 @@ function mouseMove (event) {
 	var rect = canvas.getBoundingClientRect();
 	var mouse_x = event.clientX  - rect.left;
 	var mouse_y = event.clientY - rect.top;
+	TEMP_mouse_pos_X = event.clientX
+	TEMP_mouse_pos_Y = event.clientY
 	ctx.clearRect(0,0,canvas.width,canvas.height);
 	gm.draw();
 	ctx.beginPath();
@@ -545,6 +549,10 @@ function mouseMove (event) {
 document.addEventListener('keyup',function(event){
 	if (event.keyCode == 32){
 		rot_toggled = ~rot_toggled;
+	var temp_move = new MouseEvent('mousemove', {
+		'clientX' : TEMP_mouse_pos_X,
+		'clientY' : TEMP_mouse_pos_Y});
+	document.dispatchEvent(temp_move);
 	}
 });
 
