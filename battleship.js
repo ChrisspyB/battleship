@@ -68,6 +68,7 @@ function GameManager(local){
 	this.boards = [	new Board(game.x,game.y,this),
 					new Board(game.x + game.boardLen + game.boardSep, game.y,this)];
 	this.aiMoves=[]; // * TEMP METHOD OF HANDLING AI
+	this.aiHits=[]; // * TEMP AI
 	this.mp = false;
 }
 GameManager.prototype.newGame = function(mp) {
@@ -357,11 +358,63 @@ GameManager.prototype.drawUI = function() {
 	}
 };
 GameManager.prototype.playAI = function(){
-	// very dirty, inefficient, rubbish ai just for the moment.
-	// no minimum run time hoooray!
 	var generating = true;
 	var move = 0;
-	while (generating){
+	var usefulHits = this.aiHits;
+	
+	
+	// while (usefulHits.length > 1){
+		// if (Math.abs(usefulHits[0] - usefulHits[1] == 10){
+			// move = Math.
+		// }
+	// }
+	
+	while (usefulHits.length > 0){
+		var trialHit = usefulHits[0];
+		var occupiedNo = 0;
+		
+		for (var j=0; j<4; j++){
+			// Checking for boundary conditions, more elegant method can be thought of.
+			if ((trialHit%10 + (1-j)*(3-j)%2) > 9 || (trialHit%10 + (1-j)*(3-j)%2) < 0){
+				console.log((trialHit%10 + (1-j)*(3-j)%2));
+				console.log('too left or too right');
+				console.log(trialHit + " index " + j);
+				occupiedNo++;
+				continue;
+			}
+			if ((trialHit + j*(2-j)*10%20) > 99 || (trialHit + j*(2-j)*10%20) < 0){
+				console.log((Math.floor(trialHit/10) + j*(2-j)*10%20))
+				console.log('too high or too low');
+				console.log(trialHit + " index " + j);
+				occupiedNo++;
+				continue;
+			}
+			
+			
+			
+			
+			var moveOn = true;
+			move = trialHit + (1-j)*(3-j)%2 + j*(2-j)*10%20;
+			for (var i=0; i<this.aiMoves.length; i++){
+				if (move == this.aiMoves[i]){
+					occupiedNo++;
+					moveOn = false;
+					break;
+				}
+			}
+			if (moveOn){
+				break;
+			}
+		}
+		
+		if (occupiedNo == 4){
+			usefulHits.splice(0,1);
+			continue;
+		}
+		break;
+	}
+	
+	while (generating && usefulHits == 0){
 		generating = false;
 		move = Math.floor(Math.random()*game.boardSqLen) + 10*Math.floor(Math.random()*game.boardSqLen);
 		for (var i=0; i<this.aiMoves.length; i++){
@@ -372,7 +425,7 @@ GameManager.prototype.playAI = function(){
 		}
 	}
 	this.aiMoves.push(move);
-	this.boards[0].shootSquare(move%10,Math.floor(move/10));
+	this.boards[0].shootSquare(move%10,Math.floor(move/10), true);
 	this.nextPlayer(0);
 }
 
@@ -450,10 +503,13 @@ Board.prototype.drawSquare = function(i,j,showShips) {
 	ctx.closePath();
 
 };	
-Board.prototype.shootSquare = function(i,j) {
+Board.prototype.shootSquare = function(i,j, ai=false) {
 	this.map[i][j] = this.map[i][j] | mark.shot;
 	if (this.map[i][j] & mark.ship){
 		this.health--;
+		if (ai){
+			this.manager.aiHits.unshift(i + 10*j);
+		}
 	}
 	this.drawSquare(i,j);
 	if (this.health<=0){
