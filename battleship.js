@@ -361,14 +361,7 @@ GameManager.prototype.playAI = function(){
 	var generating = true;
 	var move = 0;
 	var usefulHits = this.aiHits;
-	
-	
-	// while (usefulHits.length > 1){
-		// if (Math.abs(usefulHits[0] - usefulHits[1] == 10){
-			// move = Math.
-		// }
-	// }
-	
+
 	while (usefulHits.length > 0){
 		var trialHit = usefulHits[0];
 		var occupiedNo = 0;
@@ -390,9 +383,6 @@ GameManager.prototype.playAI = function(){
 				continue;
 			}
 			
-			
-			
-			
 			var moveOn = true;
 			move = trialHit + (1-j)*(3-j)%2 + j*(2-j)*10%20;
 			for (var i=0; i<this.aiMoves.length; i++){
@@ -406,7 +396,6 @@ GameManager.prototype.playAI = function(){
 				break;
 			}
 		}
-		
 		if (occupiedNo == 4){
 			usefulHits.splice(0,1);
 			continue;
@@ -503,7 +492,8 @@ Board.prototype.drawSquare = function(i,j,showShips) {
 	ctx.closePath();
 
 };	
-Board.prototype.shootSquare = function(i,j, ai=false) {
+Board.prototype.shootSquare = function(i,j, ai) {
+	var ai = ai || false;
 	this.map[i][j] = this.map[i][j] | mark.shot;
 	if (this.map[i][j] & mark.ship){
 		this.health--;
