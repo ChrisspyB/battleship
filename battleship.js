@@ -69,6 +69,7 @@ function GameManager(local){
 					new Board(game.x + game.boardLen + game.boardSep, game.y,this)];
 	this.aiMoves=[]; // * TEMP METHOD OF HANDLING AI
 	this.aiHits=[]; // * TEMP AI
+	this.aiUselessHits=[]; // * TEMP AI
 	this.mp = false;
 }
 GameManager.prototype.newGame = function(mp) {
@@ -357,28 +358,172 @@ GameManager.prototype.drawUI = function() {
 		ctx.textAlign = default_text.align;
 	}
 };
+
+//ARRAY DIFFERENCE FUNCTION from Stack Overflow (with slight modification)
+function arr_diff (a1, a2) {
+    var a = [], diff = [];
+    for (var i = 0; i < a1.length; i++) {
+        a[a1[i]] = true;
+    }
+    for (var i = 0; i < a2.length; i++) {
+        if (a[a2[i]]) {
+            delete a[a2[i]];
+        } else {
+            a[a2[i]] = true;
+        }
+    }
+    for (var k in a) {
+        diff.push(parseInt(k));
+    }
+    return diff;
+};
+
+
 GameManager.prototype.playAI = function(){
 	var generating = true;
 	var move = 0;
-	var usefulHits = this.aiHits;
+	var usefulHits = arr_diff(this.aiHits, this.aiUselessHits);
+	
+	while (usefulHits.length > 1){
+		if (Math.abs(usefulHits[0] - usefulHits[1]) == 10){
+			var counter = 1;
+			var moveOn = false;
+			
+			while (~moveOn) {
+				var nextIter = false;
+				move = Math.max.apply(Math, usefulHits) + 10*counter;
+				if (move > 99){
+					moveOn = true;
+					break;
+				}
+				counter++;
+				for (var i=0; i<this.aiHits.length; i++){
+					if (move == this.aiHits[i]){
+						nextIter = true;
+						break;
+					}
+				}
+				if (nextIter){continue;}
+				else {
+					for (var i=0; i<this.aiMoves.length; i++){
+						if (move == this.aiMoves[i]){
+							moveOn = true;
+							break;
+						}
+					}
+					break;
+				}
+			}
+			
+			counter = 1;
+			while(moveOn){
+				var nextIter = false;
+				move = Math.min.apply(Math, usefulHits) - 10*counter;
+				if (move < 0){
+					this.aiUselessHits.push.apply(this.aiUselessHits, usefulHits);
+					usefulHits = [];
+					break;
+				}
+				counter++;
+				for (var i=0; i<this.aiHits.length; i++){
+					if (move == this.aiHits[i]){
+						nextIter = true;
+						break;
+					}
+				}
+				if (nextIter){continue;}
+				else {
+					for (var i=0; i<this.aiMoves.length; i++){
+						if (move == this.aiMoves[i]){
+							this.aiUselessHits.push.apply(this.aiUselessHits, usefulHits);
+							usefulHits = [];
+							break;
+						}
+					}
+					break;
+				}
+			}
+		}
+		
+		else if (Math.abs(usefulHits[0] - usefulHits[1]) == 1 && Math.floor(usefulHits[0]/10) == Math.floor(usefulHits[1]/10) ){
+			var counter = 1;
+			var moveOn = false;
+			
+			while (~moveOn) {
+				var nextIter = false;
+				var ref_value = Math.max.apply(Math, usefulHits);
+				if (ref_value%10 == 9 || ref_value%10 == 0){
+					moveOn = true;
+					break;
+				}
+				move = ref_value + counter;
+				counter++;
+				for (var i=0; i<this.aiHits.length; i++){
+					if (move == this.aiHits[i]){
+						nextIter = true;
+						break;
+					}
+				}
+				if (nextIter){continue;}
+				else {
+					for (var i=0; i<this.aiMoves.length; i++){
+						if (move == this.aiMoves[i]){
+							moveOn = true;
+							break;
+						}
+					}
+					break;
+				}
+			}
+			
+			counter = 1;
+			while(moveOn){
+				var nextIter = false;
+				var ref_value = Math.min.apply(Math, usefulHits);
+				if (ref_value%10 == 9 || ref_value%10 == 0){
+					this.aiUselessHits.push.apply(this.aiUselessHits, usefulHits);
+					usefulHits = [];
+					break;
+				}
+				move = ref_value - counter;
+				counter++;
+				for (var i=0; i<this.aiHits.length; i++){
+					if (move == this.aiHits[i]){
+						nextIter = true;
+						break;
+					}
+				}
+				if (nextIter){continue;}
+				else {
+					for (var i=0; i<this.aiMoves.length; i++){
+						if (move == this.aiMoves[i]){
+							this.aiUselessHits.push.apply(this.aiUselessHits, usefulHits);
+							usefulHits = [];
+							break;
+						}
+					}
+					break;
+				}
+			}
+			
+		}
+		else {
+			// Not sure about its behaviour when ships are stacked.
+			usefulHits = [usefulHits[0]];
+		}
+		break;
+	}
 
-	while (usefulHits.length > 0){
+	while (usefulHits.length == 1){
 		var trialHit = usefulHits[0];
 		var occupiedNo = 0;
 		
 		for (var j=0; j<4; j++){
-			// Checking for boundary conditions, more elegant method can be thought of.
 			if ((trialHit%10 + (1-j)*(3-j)%2) > 9 || (trialHit%10 + (1-j)*(3-j)%2) < 0){
-				console.log((trialHit%10 + (1-j)*(3-j)%2));
-				console.log('too left or too right');
-				console.log(trialHit + " index " + j);
 				occupiedNo++;
 				continue;
 			}
 			if ((trialHit + j*(2-j)*10%20) > 99 || (trialHit + j*(2-j)*10%20) < 0){
-				console.log((Math.floor(trialHit/10) + j*(2-j)*10%20))
-				console.log('too high or too low');
-				console.log(trialHit + " index " + j);
 				occupiedNo++;
 				continue;
 			}
@@ -403,7 +548,7 @@ GameManager.prototype.playAI = function(){
 		break;
 	}
 	
-	while (generating && usefulHits == 0){
+	while (generating && usefulHits.length == 0){
 		generating = false;
 		move = Math.floor(Math.random()*game.boardSqLen) + 10*Math.floor(Math.random()*game.boardSqLen);
 		for (var i=0; i<this.aiMoves.length; i++){
@@ -413,6 +558,7 @@ GameManager.prototype.playAI = function(){
 			}
 		}
 	}
+	
 	this.aiMoves.push(move);
 	this.boards[0].shootSquare(move%10,Math.floor(move/10), true);
 	this.nextPlayer(0);
