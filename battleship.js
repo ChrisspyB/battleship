@@ -399,6 +399,11 @@ GameManager.prototype.playAI = function(){
 				counter++;
 				for (var i=0; i<this.aiHits.length; i++){
 					if (move == this.aiHits[i]){
+						for (var j=0; j<this.aiUselessHits.length; j++){
+							if (move == this.aiUselessHits[j]){
+								this.aiUselessHits.splice(j,1);
+							}
+						}
 						nextIter = true;
 						break;
 					}
@@ -427,6 +432,11 @@ GameManager.prototype.playAI = function(){
 				counter++;
 				for (var i=0; i<this.aiHits.length; i++){
 					if (move == this.aiHits[i]){
+						for (var j=0; j<this.aiUselessHits.length; j++){
+							if (move == this.aiUselessHits[j]){
+								this.aiUselessHits.splice(j,1);
+							}
+						}
 						nextIter = true;
 						break;
 					}
@@ -460,6 +470,11 @@ GameManager.prototype.playAI = function(){
 				counter++;
 				for (var i=0; i<this.aiHits.length; i++){
 					if (move == this.aiHits[i]){
+						for (var j=0; j<this.aiUselessHits.length; j++){
+							if (move == this.aiUselessHits[j]){
+								this.aiUselessHits.splice(j,1);
+							}
+						}
 						nextIter = true;
 						break;
 					}
@@ -489,6 +504,11 @@ GameManager.prototype.playAI = function(){
 				counter++;
 				for (var i=0; i<this.aiHits.length; i++){
 					if (move == this.aiHits[i]){
+						for (var j=0; j<this.aiUselessHits.length; j++){
+							if (move == this.aiUselessHits[j]){
+								this.aiUselessHits.splice(j,1);
+							}
+						}
 						nextIter = true;
 						break;
 					}
@@ -514,6 +534,8 @@ GameManager.prototype.playAI = function(){
 		break;
 	}
 
+	var abortSearch = false;
+
 	while (usefulHits.length == 1){
 		var trialHit = usefulHits[0];
 		var occupiedNo = 0;
@@ -532,6 +554,12 @@ GameManager.prototype.playAI = function(){
 			move = trialHit + (1-j)*(3-j)%2 + j*(2-j)*10%20;
 			for (var i=0; i<this.aiMoves.length; i++){
 				if (move == this.aiMoves[i]){
+					for (var k=0; k<this.aiUselessHits.length; k++){
+							if (move == this.aiUselessHits[k]){
+								this.aiUselessHits.splice(k,1);
+								abortSearch = true;
+							}
+						}
 					occupiedNo++;
 					moveOn = false;
 					break;
@@ -558,10 +586,13 @@ GameManager.prototype.playAI = function(){
 			}
 		}
 	}
-	
+	if (abortSearch){
+		this.playAI();
+	} else {
 	this.aiMoves.push(move);
 	this.boards[0].shootSquare(move%10,Math.floor(move/10), true);
 	this.nextPlayer(0);
+	}
 }
 
 function Board(x,y,game_manager){
